@@ -1,71 +1,39 @@
 import streamlit as st
+import google.generativeai as genai 
 from PIL import Image
-import torch
-from transformers import BlipProcessor, BlipForConditionalGeneration
 
-# Set Streamlit page configuration
-def set_page_config():
-    st.set_page_config(
-        page_title='Caption an Image', 
-        page_icon=':camera:', 
-        layout='wide'
-    )
+# Configure Gemini API key
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Initialize the BLIP model and processor
-@st.cache_resource
-def initialize_model():
-    hf_model = "Salesforce/blip-image-captioning-large"
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    processor = BlipProcessor.from_pretrained(hf_model)
-    model = BlipForConditionalGeneration.from_pretrained(hf_model).to(device)
-    return processor, model, device
+# Load the Gemini model
+model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
-# Upload an image from the sidebar
-def upload_image():
-    return st.sidebar.file_uploader("Upload an image (we aren't storing anything)", type=["jpg", "jpeg", "png"])
+# Define function to generate response
+def get_gemini_response(image): 
+    # Define a fixed prompt template to generate captions for the uploaded image
+    prompt = "Generate a single, detailed caption or description for the following image, in a natural and coherent paragraph format:"
+    response = model.generate_content([prompt, image]) 
+    return response.text
 
-# Resize image for display (optional max width)
-def resize_image(image, max_width=700):
-    width, height = image.size
-    if width > max_width:
-        ratio = max_width / width
-        height = int(height * ratio)
-        image = image.resize((max_width, height))
-    return image
+# Initialize the Streamlit app
+st.set_page_config(page_title="Gemini Image Demo")
+st.header("Caption Generator using Gemini API")
 
-# Generate a caption for the uploaded image
-def generate_caption(processor, model, device, image):
-    inputs = processor(image, return_tensors='pt').to(device)
-    out = model.generate(**inputs, max_new_tokens=20)
-    caption = processor.decode(out[0], skip_special_tokens=True)
-    return caption
+# File uploader for image input
+uploaded_file = st.file_uploader("Choose any file :) ", type=["jpg", "jpeg", "png"])
+image = ""
 
-# Main function to run the Streamlit app
-def main():
-    set_page_config()
-    st.header("Caption an Image :camera:")
+# Logic to display the uploaded image
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Image Uploaded.", use_column_width=True)
 
-    # Upload image
-    uploaded_image = upload_image()
+# Button to generate caption
+submit = st.button("Generate Caption about image")
 
-    # If an image is uploaded, process and display it
-    if uploaded_image is not None:
-        image = Image.open(uploaded_image)
-        image = resize_image(image)  # Resize image for better display
-
-        # Display the uploaded image
-        st.image(image, caption='Your image')
-
-        # Sidebar section for generating caption
-        with st.sidebar:
-            st.divider()  # Divider for aesthetic spacing
-            if st.button('Generate Caption'):
-                # Display loading spinner while generating the caption
-                with st.spinner('Generating caption...'):
-                    processor, model, device = initialize_model()
-                    caption = generate_caption(processor, model, device, image)
-                    st.header("Generated Caption:")
-                    st.markdown(f'**{caption}**')
-
-if __name__ == '__main__':
-    main()
+# If button clicked
+if submit and image:
+    response = get_gemini_response(image)
+    # Display the generated caption
+    st.subheader("Generated Caption is")
+    st.write(response)
