@@ -6,7 +6,7 @@ from PIL import Image
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # Load the Gemini model
-model = genai.GenerativeModel("gemini-2.0-flash-exp")
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 # Define function to generate response
 def get_gemini_response(image): 
